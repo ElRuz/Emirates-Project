@@ -31,3 +31,26 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Node.js dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Java/Maven dependencies
+target/
+*.jar
+*.war
+*.ear
+
+# OS and Editor-specific files
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# Environment files
+.env
+application.properties
+application.yml
+
