@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emirates API Manager</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+            overflow: hidden;
+        }
+        #mainContent {
+            display: none;
+        }
+        #startButton {
+            padding: 15px 30px;
+            font-size: 20px;
+            background-color: #D71A21;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 250px;
+            position: relative;
+            z-index: 2;
+        }
+        #startButton:hover {
+            background-color: #B3151B;
+        }
+        .table-container {
+            width: 80%;
+            margin: auto;
+            text-align: left;
+        }
+        .filter-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .filter-group label {
+            font-size: 14px;
+        }
+        table {
+            width: 100%;
+            margin: auto;
+            border-collapse: collapse;
+            border: 2px solid #000;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+        }
+        th {
+            background-color: #007BFF;
+            color: white;
+        }
+        input, select, button {
+            padding: 5px;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .action-buttons {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 10px;
+        }
+        .action-buttons button {
+            padding: 10px 15px;
+            font-size: 14px;
+            margin-left: 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+        }
+        #deleteBtn {
+            background-color: red;
+            color: white;
+        }
+        .marked-for-deletion {
+            background-color: #FFCCCC !important;
+        }
+        #confirmBtn {
+            background-color: green;
+            color: white;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #dynamicStyles {
+            display: none;
+        }
+        .runway {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+        }
+        .airplane {
+            position: absolute;
+            bottom: 32px;
+            left: 10%;
+            width: 550px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .header img {
+            height: 50px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <img src="/assets/icons/emirates-airlines.svg" alt="Emirates Logo">
+        <h1>Emirates API Manager</h1>
+    </div>
+
+    <button id="startButton" onclick="startApp()">Start</button>
+
+    <img src="/assets/icons/emirates_plane.svg" id="airplane" alt="Airplane" class="airplane" width="60">
+    <style id="dynamicStyles"></style>
+
+    <div class="runway"></div>
+
+    <div id="mainContent">
+       <div class="table-container">
+            <div class="filter-container">
+                
+                <div class="filter-group">
+                    <label for="filterValid">Validity:</label>
+                    <select id="filterValid" onchange="filterAndSortRecords()">
+                        <option value="all" selected>All</option>
+                        <option value="true">True</option>
+                        <option value="false">False</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <input type="text" id="searchInput" placeholder="By App Name" onkeyup="filterAndSortRecords()">
+                </div>
+
+                <div class="filter-group">
+                    <label for="sortBy">Sort:</label>
+                    <select id="sortBy" onchange="filterAndSortRecords()">
+                        <option value="name_asc">App Name (A-Z)</option>
+                        <option value="name_desc">App Name (Z-A)</option>
+                        <option value="owner_asc">Owner (A-Z)</option>
+                        <option value="owner_desc">Owner (Z-A)</option>
+                        <option value="valid_true">Valid First</option>
+                        <option value="valid_false">Invalid First</option>
+                    </select>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th><input type="checkbox" id="selectAll" onclick="toggleSelectAll()"></th>
+                        <th>App Name</th>
+                        <th>App Path</th>
+                        <th>Owner</th>
+                        <th>Validity</th>
+                    </tr>
+                </thead>
+                <tbody id="recordsTable">
+                    <!-- Records here -->
+                </tbody>
+            </table>
+
+            <div class="action-buttons">
+                <button id="deleteBtn" disabled onclick="deleteRecords()">Delete</button>
+                <button id="confirmBtn" disabled onclick="confirmChanges()">Confirm</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let changesMade = false;
+        let originalValues = new Map();
+        let modifiedRecords = new Map();
+        let allRecords = [];
+
+        function startApp() {
+            document.getElementById("startButton").style.display = "none";
+            document.getElementById("mainContent").style.display = "block";
+            fetchRecords();
+        }
+
+        fetch("http://localhost:8080/apps", {
+            headers: {
+                "Accept": "application/json"
+            }
+        })
+        .then(response => response.json())
+        .then(data => console.log("API Data Fetched:", data))
+        .catch(error => console.error("Fetch Error:", error));
+
+        function fetchRecords() {
+            fetch("http://localhost:8080/apps")
+                .then(response => response.json())
+                .then(data => {
+                    allRecords = data;
+                    console.log("Populating table with data:", data);
+                    displayRecords(data);
+                })
+                .catch(error => console.error("Fetch Error:", error));
+        }
+        
+        function displayRecords(records) {
+            let tableBody = document.getElementById("recordsTable");
+            tableBody.innerHTML = "";
+
+            if (records.length === 0) {
+                tableBody.innerHTML = "<tr><td colspan='5'>No records found</td></tr>";
+                return;
+            }
+
+            records.forEach(app => {
+                let row = document.createElement("tr");
+
+                row.innerHTML = `
+                    <td><input type="checkbox" class="rowCheckbox" onchange="updateButtonStates()"></td>
+                    <td>${app.appName}</td>
+                    <td>${app.appData.appPath}</td>
+                    <td ondblclick="editCell(this)">${app.appData.appOwner}</td>
+                    <td ondblclick="editValidity(this)">${app.appData.isValid ? "true" : "false"}</td>
+                `;
+
+                tableBody.appendChild(row);
+            });
+
+            updateButtonStates();
+        }
+
+        function filterAndSortRecords() {
+            let searchQuery = document.getElementById("searchInput").value.trim().toLowerCase();
+            let validityFilter = document.getElementById("filterValid").value;
+            let sortOption = document.getElementById("sortBy").value;
+
+            let filteredRecords = allRecords.filter(app => {
+                let matchesSearch = searchQuery === "" || app.appName.toLowerCase().includes(searchQuery);
+                let matchesValidity = validityFilter === "all" || String(app.appData.isValid) === validityFilter;
+                return matchesSearch && matchesValidity;
+            });
+
+            filteredRecords.sort((a, b) => {
+                switch (sortOption) {
+                    case "name_asc": return a.appName.localeCompare(b.appName);
+                    case "name_desc": return b.appName.localeCompare(a.appName);
+                    case "owner_asc": return a.appData.appOwner.localeCompare(b.appData.appOwner);
+                    case "owner_desc": return b.appData.appOwner.localeCompare(a.appData.appOwner);
+                    case "valid_true": return b.appData.isValid - a.appData.isValid;  
+                    case "valid_false": return a.appData.isValid - b.appData.isValid;  
+                    default: return 0;
+                }
+            });
+            displayRecords(filteredRecords);
+        }
+
+
+        function toggleSelectAll() {
+            let selectAll = document.getElementById("selectAll");
+            let checkboxes = document.querySelectorAll(".rowCheckbox");
+            checkboxes.forEach(checkbox => checkbox.checked = selectAll.checked);
+            updateButtonStates();
+        }
+
+        function updateButtonStates() {
+            let checkboxes = document.querySelectorAll(".rowCheckbox:checked");
+            document.getElementById("deleteBtn").disabled = checkboxes.length === 0;
+            document.getElementById("confirmBtn").disabled = !changesMade;
+
+            let allCheckboxes = document.querySelectorAll(".rowCheckbox");
+            document.getElementById("selectAll").checked = checkboxes.length === allCheckboxes.length && checkboxes.length > 0;
+        }
+
+        function editCell(cell) {
+            let originalValue = cell.innerText;
+            originalValues.set(cell, originalValue);
+
+            cell.innerHTML = `<input type="text" value="${originalValue}" 
+                onblur="saveEdit(this, '${originalValue}')"
+                onkeyup="checkEnter(event, this)">`;
+
+            cell.querySelector("input").focus();
+            changesMade = true;
+            updateButtonStates();
+        }
+
+        function checkEnter(event, input) {
+            if (event.key === "Enter") {
+                saveEdit(input, originalValues.get(input.parentElement));
+            }
+        }
+
+        function saveEdit(input, originalValue) {
+            let newValue = input.value.trim();
+            let cell = input.parentElement;
+            let row = cell.parentElement;
+            
+            let appName = row.children[1].innerText;
+            let appPath = row.children[2].innerText;
+            let appOwner = row.children[3].innerText;
+            let isValid = row.children[4].innerText === "true";
+
+            cell.innerHTML = newValue || originalValue;
+
+            modifiedRecords.set(appName, {
+                appPath: appPath,
+                appOwner: row.children[3].innerText,
+                isValid: row.children[4].innerText === "True"
+            });
+
+            let changesExist = modifiedRecords.size > 0;
+            changesMade = changesExist;
+            updateButtonStates()
+            .then(response => response.json())
+            .then(data => console.log("Updated:", data))
+            .catch(error => console.error("Error updating record:", error));
+        }
+
+        function editValidity(cell) {
+            let originalValue = cell.innerText;
+            originalValues.set(cell, originalValue);
+
+            cell.innerHTML = `
+                <select onchange="saveValidity(this, '${originalValue}')">
+                    <option value="true" ${originalValue === "true" ? "selected" : ""}>true</option>
+                    <option value="false" ${originalValue === "false" ? "selected" : ""}>false</option>
+                </select>`;
+            cell.querySelector("select").focus();
+        }
+
+        function saveValidity(selectElement, originalValue) {
+            let newValue = selectElement.value;
+            let cell = selectElement.parentElement;
+            let row = cell.parentElement;
+
+            let appName = row.children[1].innerText;
+            let appOwner = row.children[3].innerText; 
+            
+            cell.innerHTML = newValue; 
+
+            if (!modifiedRecords.has(appName)) {
+                modifiedRecords.set(appName, { appOwner, isValid: newValue === "true" });
+            } else {
+                modifiedRecords.get(appName).isValid = newValue === "true";
+            }
+
+            changesMade = true;
+            updateButtonStates();
+        }
+
+        function deleteRecords() {
+            let checkboxes = document.querySelectorAll(".rowCheckbox:checked");
+            
+            if (checkboxes.length === 0) return;
+
+            checkboxes.forEach(checkbox => {
+                let row = checkbox.closest("tr");
+                let appName = row.children[1].innerText; 
+
+                row.classList.add("marked-for-deletion"); 
+                modifiedRecords.set(appName, { delete: true });
+            });
+
+            changesMade = true;
+            updateButtonStates();
+            document.getElementById("deleteBtn").disabled = true;
+        }
+
+        function confirmChanges() {
+            if (modifiedRecords.size === 0) return;
+
+            let updateRequests = [];
+            let deleteRequests = [];
+
+            modifiedRecords.forEach((data, appName) => {
+                if (data.delete) {
+                    deleteRequests.push(
+                        fetch(`http://localhost:8080/apps/${appName}`, { method: "DELETE" })
+                        .then(() => console.log(`Deleted ${appName}`))
+                        .catch(error => console.error(`Error deleting ${appName}:`, error))
+                    );
+                } else {
+                    updateRequests.push(
+                        fetch(`http://localhost:8080/apps/${appName}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(data)
+                        })
+                        .then(response => response.json())
+                        .then(data => console.log(`Updated ${appName}:`, data))
+                        .catch(error => console.error(`Error updating ${appName}:`, error))
+                    );
+                }
+            });
+
+            Promise.all([...updateRequests, ...deleteRequests]).then(() => {
+                alert("All changes saved successfully!");
+                modifiedRecords.clear();
+                changesMade = false;
+
+                // Refresh Table
+                fetchRecords();
+                filterAndSortRecords();
+                updateButtonStates();
+            });
+        }
+
+    </script>
+
+</body>
+</html>
