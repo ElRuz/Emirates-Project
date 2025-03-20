@@ -318,27 +318,23 @@
             let newValue = input.value.trim();
             let cell = input.parentElement;
             let row = cell.parentElement;
-            
+
             let appName = row.children[1].innerText;
             let appPath = row.children[2].innerText;
-            let appOwner = row.children[3].innerText;
-            let isValid = row.children[4].innerText === "true";
+            let isValid = allRecords.find(app => app.appName === appName)?.appData.isValid || false; // Fetch correct validity
 
             cell.innerHTML = newValue || originalValue;
 
             modifiedRecords.set(appName, {
                 appPath: appPath,
-                appOwner: row.children[3].innerText,
-                isValid: row.children[4].innerText === "True"
+                appOwner: newValue, // Update owner only
+                isValid: isValid // Keep the same validity
             });
 
-            let changesExist = modifiedRecords.size > 0;
-            changesMade = changesExist;
-            updateButtonStates()
-            .then(response => response.json())
-            .then(data => console.log("Updated:", data))
-            .catch(error => console.error("Error updating record:", error));
+            changesMade = true;
+            updateButtonStates();
         }
+
 
         function editValidity(cell) {
             let originalValue = cell.innerText;
